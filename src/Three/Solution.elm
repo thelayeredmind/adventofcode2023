@@ -69,7 +69,7 @@ update msg model =
         connected = getConnectedDigitGroups inputGrid
       in
       { model 
-      | result = String.fromInt <| sumGroups connected
+      | result = String.fromInt <| (findGears inputGrid |> List.map (\gear -> (Tuple.first gear) * (Tuple.second gear) ) |> List.sum)
       , input = a
       , grid = inputGrid
       , groups = connected
@@ -193,9 +193,49 @@ getConnectedDigitGroups grid =
       getNeighbors grid cell  |>
       Maybe.Extra.values |>
       List.map .content |>
-      List.any isCellSpecial)
+      List.any (isCellSpecial Nothing) )
     a
   ) 
+
+type alias Gear = (Int, Int)
+
+findGears : Grid -> List Gear
+findGears grid = 
+  List.filter (\a -> isCellSpecial (Just '*') a.content) grid.cells |>
+  List.map (getNeighbors grid) |> 
+  List.map (\a -> (Maybe.Extra.values a |> List.filter (\a2 -> isCellDigit a2.content) |> List.foldl (collectUniqueDigitCells grid) []) ) |>
+  List.filterMap (\a ->
+    if List.length a == 2 
+    then 
+      let 
+        empty = {content = Nothing, pos = { x = -2, y = -2}}
+        one = scanLineForDigits grid [Maybe.withDefault empty <| List.head a]
+        two = scanLineForDigits grid [Maybe.withDefault empty <| List.head <| Maybe.withDefault [] <| List.tail a]
+      in
+        Just ( Maybe.withDefault 0 <| groupToInt one, Maybe.withDefault 0 <| groupToInt two)
+    else Nothing
+  )
+
+collectUniqueDigitCells : Grid -> Cell -> List Cell -> List Cell
+collectUniqueDigitCells grid cellToCheck digitCells = 
+  let
+    leftMost = getLeftMostDigit grid cellToCheck
+  in
+    if List.member leftMost digitCells
+    then digitCells
+    else List.append digitCells [leftMost]
+
+getLeftMostDigit : Grid -> Cell -> Cell
+getLeftMostDigit grid cell = 
+  let leftOf = getNeighbor grid cell (-1, 0)
+  in
+    case leftOf of
+      Nothing -> cell
+      Just leftCell -> 
+        if isCellDigit leftCell.content 
+        then getLeftMostDigit grid leftCell 
+        else cell
+
 
 groupDigits: Grid -> List (List Cell)
 groupDigits grid = 
@@ -239,10 +279,13 @@ isCellDigit content =
     Just (Digit _) -> True
     _ -> False
 
-isCellSpecial : Maybe CharType -> Bool
-isCellSpecial content =
+isCellSpecial : Maybe Char -> Maybe CharType -> Bool
+isCellSpecial charToFind content =
   case content of
-    Just (Special _) -> True
+    Just (Special c) -> 
+      case charToFind of
+        Nothing -> True
+        Just ctf -> c == ctf  
     _ -> False
 
 getNeighbors : Grid -> Cell -> List (Maybe Cell)
