@@ -40,6 +40,7 @@ type alias Model =
 type alias Structure = 
   { seeds : List Int
   , mappings : Mapping
+  , root: Int
   }
 
 init : Model
@@ -79,10 +80,14 @@ parse str =
   let
     blocks = String.split "\n\n" str
     seedsBlock = List.head blocks |> Maybe.withDefault ""
-    mapps = List.map (parseMapping (parseNum str |> List.maximum |> Maybe.withDefault 0)) <| Maybe.withDefault [] <| List.tail blocks
+    allNums = parseNum str
+    min = allNums |> List.filter (\a -> a /= 0) |> List.minimum |> Maybe.withDefault 0
+    max = allNums |> List.maximum |> Maybe.withDefault 0
+    mapps = List.map (parseMapping max min) <| Maybe.withDefault [] <| List.tail blocks
   in
-  { seeds = parseNum seedsBlock
+  { seeds = List.map (\a -> a - (Debug.log "Minimum: " min + 1)) <| parseNum seedsBlock
   , mappings = mapps
+  , root = min
   }
 
 
@@ -107,8 +112,8 @@ listPairMap f l = List.foldl (\a b ->
     ) ([], []) l
 
 
-parseMapping : Int -> String -> Dict Int Int
-parseMapping maxNum str = 
+parseMapping : Int -> Int -> String -> Dict Int Int
+parseMapping maxNum minNum str = 
   let
     lines = String.lines str
     title = 
@@ -126,6 +131,7 @@ parseMapping maxNum str =
       List.tail lines |> 
       Maybe.withDefault [] |> 
       List.map parseNum |>
+      List.map (\b -> List.map (\a -> if a > minNum then a - minNum else a) b) |>
       List.map listToRange |>
       Maybe.values |>
       List.map rangeToMapping |>
@@ -136,7 +142,7 @@ parseMapping maxNum str =
         (List.range 0 maxNum |> List.filterNot (existingValues ranges Tuple.second)) |> 
       List.append ranges
   in
-    Dict.fromList fullMapping
+    Dict.fromList ranges
 
 existingValues : List (Int, Int) -> ((Int, Int) -> Int) -> Int -> Bool
 existingValues ranges accessor n = List.member n <| List.map accessor ranges
@@ -189,7 +195,8 @@ solve1 str =
   List.map (traverse str.mappings) str.seeds |>
   Maybe.values |>
   List.minimum |>
-  Maybe.withDefault 0
+  Maybe.withDefault 0 |>
+  (\a -> str.root + a)
 
 solve2 : Structure -> Int
 solve2 str = 0 
