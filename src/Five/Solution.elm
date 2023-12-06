@@ -26,7 +26,7 @@ type Thing =
   | Humidity
   | Location
 
-type alias Mapping = Dict (Thing, Thing) (Dict Int Int)
+type alias Mapping = List (Dict Int Int)
 
 type alias Range = ((Int, Int), Int)
 
@@ -79,7 +79,7 @@ parse str =
   let
     blocks = String.split "\n\n" str
     seedsBlock = List.head blocks |> Maybe.withDefault ""
-    mapps = Dict.fromList <| Maybe.values <| List.map (parseMapping (parseNum str |> List.maximum |> Maybe.withDefault 0)) <| Maybe.withDefault [] <| List.tail blocks
+    mapps = List.map (parseMapping (parseNum str |> List.maximum |> Maybe.withDefault 0)) <| Maybe.withDefault [] <| List.tail blocks
   in
   { seeds = parseNum seedsBlock
   , mappings = mapps
@@ -107,7 +107,7 @@ listPairMap f l = List.foldl (\a b ->
     ) ([], []) l
 
 
-parseMapping : Int -> String -> Maybe ((Thing, Thing), Dict Int Int)
+parseMapping : Int -> String -> Dict Int Int
 parseMapping maxNum str = 
   let
     lines = String.lines str
@@ -136,9 +136,7 @@ parseMapping maxNum str =
         (List.range 0 maxNum |> List.filterNot (existingValues ranges Tuple.second)) |> 
       List.append ranges
   in
-    Maybe.andThen 
-      (\a -> Just (a, Dict.fromList fullMapping))
-      title
+    Dict.fromList fullMapping
 
 existingValues : List (Int, Int) -> ((Int, Int) -> Int) -> Int -> Bool
 existingValues ranges accessor n = List.member n <| List.map accessor ranges
@@ -198,7 +196,7 @@ solve2 str = 0
 
 traverse : Mapping -> Int -> Maybe Int
 traverse maps s = 
-  List.foldl mapId (Just s) <| Dict.values maps
+  List.foldl mapId (Just s) <| maps
 
 mapId : Dict Int Int -> Maybe Int -> Maybe Int
 mapId dic index = 
