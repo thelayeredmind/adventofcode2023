@@ -69,6 +69,12 @@ solve1 str =
   List.map countOptions |>
   List.product
 
+solve2 : String -> Int
+solve2 str = solve1 <| 
+  Regex.replace 
+    (Maybe.withDefault Regex.never <| Regex.fromString "[^\\S\\r\\n]") 
+    (\_ -> "") str
+
 parse : String -> List Race
 parse str = 
   let
@@ -97,7 +103,4 @@ countOptions r =
 
 distance : Int -> Int -> Int
 distance totalTime chargeTime = (totalTime - chargeTime) * chargeTime
-
-solve2 : String -> Int
-solve2 str = 0 
 
