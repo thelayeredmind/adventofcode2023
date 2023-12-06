@@ -5,7 +5,8 @@ import Html.Attributes exposing (style)
 import Browser
 import AssocList as Dict exposing (Dict)
 import Html.Events exposing (on)
-import Maybe.Extra
+import Maybe.Extra as Maybe
+import List.Extra as List
 import Regex
 import Array
 
@@ -29,14 +30,14 @@ type Msg = OnIncrement Cube | OnDecrement Cube | OnPromptUpdate String | OnCubeS
 type alias Model =
   { loadedCubes : CubeSet
   , gameList : String
-  , result : String
+  , result : (String, String)
   }
 
 init : Model
 init =
   { loadedCubes = Dict.fromList [(Red, 0), (Green, 0), (Blue, 0)]
   , gameList = ""
-  , result = ""
+  , result = ("", "")
   }
   
 
@@ -53,7 +54,8 @@ view model =
       , cubeCounter model Green
       , cubeCounter model Blue
       ]
-  , p [style "font-size" "20px"] [text model.result]
+  , p [style "font-size" "20px"] [text <| "Solution 1: " ++ (Tuple.first model.result)]
+  , p [style "font-size" "20px"] [text <| "Solution 2: " ++ (Tuple.second model.result)]
 
   ]
 writeColor : Cube -> String
@@ -89,8 +91,8 @@ update msg model =
   case msg of
     OnDecrement color -> changeCubeCount color False model
     OnIncrement color -> changeCubeCount color True model
-    OnPromptUpdate a -> {model | result = String.fromInt <| processCode model a, gameList = a}
-    OnCubeSetChange -> {model | result = String.fromInt <| processCode model model.gameList}
+    OnPromptUpdate a -> {model | result = (String.fromInt <| solve1 model a, String.fromInt <| solve2 model a), gameList = a}
+    OnCubeSetChange -> {model | result = (String.fromInt <| solve1 model model.gameList, "")}
 
 
 changeCubeCount : Cube -> Bool -> Model -> Model
@@ -100,13 +102,29 @@ changeCubeCount color up model = {model | loadedCubes =
     model.loadedCubes
   }
 
-processCode : Model -> String -> Int
-processCode model change = 
+solve1 : Model -> String -> Int
+solve1 model change = 
   String.lines change |>
   List.map parseGame |>
   (List.filter (possibleGame model.loadedCubes)) |>
   (List.map .id) |>
   List.sum 
+
+solve2 : Model -> String -> Int
+solve2 model change = 
+  String.lines change |>
+  List.map parseGame |>
+  List.map minimalSet |>
+  List.map List.product |>
+  List.sum 
+
+minimalSet : Game -> List Int
+minimalSet game = 
+    [Red, Blue, Green] |>
+    List.map (collectCubesOfColor game) |>
+    List.map List.maximum |>
+    Maybe.values
+
 
 possibleGame : CubeSet -> Game -> Bool
 possibleGame cubeset game = Dict.toList cubeset |>
@@ -139,7 +157,7 @@ parseGame string =
  
 parseSetList : String -> CubeSet
 parseSetList string = Dict.fromList <|
-  (String.split "," string |> List.map ((String.dropLeft 1) >> resolveCubeAmount) |> Maybe.Extra.values)
+  (String.split "," string |> List.map ((String.dropLeft 1) >> resolveCubeAmount) |> Maybe.values)
 
 resolveCubeAmount : String -> Maybe (Cube, Int)
 resolveCubeAmount string = 
