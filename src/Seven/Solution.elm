@@ -29,6 +29,8 @@ init =
   }
   
 
+-- TODO Refactor carrying the jackrule into model --
+
 view : Model -> Html Msg
 view model = 
   div [style "display" "flex", style "flex-direction" "column", style "align-items" "center", style "margin" "40px"] 
@@ -42,13 +44,13 @@ view model =
   , p 
     [] 
     <| (parse model.input |>
-    List.sortWith compareHands |>
+    List.sortWith (compareHands True) |>
     List.indexedMap 
       (\i a -> 
         let 
           (cards, bid) = a 
         in
-          p [] [text <| (String.join " | " <| List.map printCard cards) ++ "     " ++ "[" ++ String.fromInt bid ++ " x " ++ String.fromInt (i + 1) ++ "]"]
+          p [] [text <| (String.join " | " <| List.map printCard cards) ++ "     " ++ "[" ++ String.fromInt bid ++ " x " ++ String.fromInt (i + 1) ++ "] -- " ++ (String.fromInt <| rankHand True a)]
       ) |>
     List.reverse |>
     List.intersperse (br [] []))
@@ -80,40 +82,43 @@ type Card = A | K | Q | J | Number Int
 
 solve1 : String -> Int
 solve1 str = 
-  Debug.log "Products"
-  (parse str |>
-  List.sortWith compareHands |>
-  List.indexedMap (\i a -> (i + 1) * Tuple.second a)) |>
+  parse str |>
+  List.sortWith (compareHands False) |>
+  List.indexedMap (\i a -> (i + 1) * Tuple.second a) |>
   List.sum
 
 solve2 : String -> Int
-solve2 str = 0
+solve2 str = 
+  parse str |>
+  List.sortWith (compareHands True) |>
+  List.indexedMap (\i a -> (i + 1) * Tuple.second a) |>
+  List.sum
 
 
-compareHands : Hand -> Hand -> Order
-compareHands hand1 hand2 = 
+compareHands : Bool -> Hand -> Hand -> Order
+compareHands jackrule hand1 hand2 = 
   let 
-    valueHand1 = rankHand hand1
-    valueHand2 = rankHand hand2
+    valueHand1 = rankHand jackrule hand1 
+    valueHand2 = rankHand jackrule hand2 
     (cards1, _) = hand1
     (cards2, _) = hand2
 
   in
     if valueHand1 == valueHand2
-    then compare (List.map cardValue cards1) (List.map cardValue cards2)
+    then compare (List.map (cardValue jackrule) cards1) (List.map (cardValue jackrule) cards2)
     else compare valueHand1 valueHand2
 
-cardValue : Card -> Int
-cardValue card = 
+cardValue : Bool -> Card -> Int
+cardValue jr card = 
       case card of
         Number n -> n
-        J -> 11
+        J -> if jr then 1 else 11 
         Q -> 12
         K -> 13
         A -> 14
 
-rankHand : Hand -> Int
-rankHand hand = 
+rankHand : Bool -> Hand -> Int
+rankHand jr hand = 
   let
     (cards, _) = hand
     frequencies = 
@@ -125,27 +130,40 @@ rankHand hand =
         )
         (Dict.fromList [])
         cards
+
+    -- TODO Refactor the joker logic to its own branch
     estimatePlay listOfMatchedCards =
       case listOfMatchedCards of
         -- 5 of a Kind --
-        [(crd, n)] ->  10
-        [(crd1, n1), (crd2, n2)] ->
-          if n1 > 3
-          -- 4 of a Kind ---
-            then 8
-          -- Full House --
-            else 6
-        [(set1, n1), (set2, n2), _] -> 
+        [_] ->  10
+        [(set1, n1), (set2, _)] ->
+          if jr && (set1 == J || set2 == J)
+          then 10
+          else
+            if n1 > 3
+            -- 4 of a Kind ---
+              then 8
+            -- Full House --
+              else 6 
+        [(set1, n1), (set2, n2), (set3, _)] -> 
           if n1 > n2
           -- Three of a Kind --
-          then 4
+          then 3 
+            + (if jr && (set1 == J || set2 == J || set3 == J) then 5 else 0)
           -- Double Pair --
-          else 2
+          else 2 
+            + (if jr && (set2 == J || set1 == J) then 6 else 0)
+            + (if jr && set3 == J then 4 else 0)
           -- Pair --
-        [(set1, n1), _, _, _] -> 
-           1
+        [(set1, _), (set2, _), (set3, _), (set4, _)] -> 
+           1 
+            + (if jr && (set1 == J || set2 == J || set3 == J || set4 == J) then 2 else 0)
         -- None --
-        _ -> 0
+        list -> 
+          if jr 
+            && (List.filter (\a -> Tuple.first a == J) list |> List.length) > 0 
+          then 1 
+          else 0
   
   in
     Dict.toList frequencies |>
