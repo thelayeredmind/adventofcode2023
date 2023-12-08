@@ -6,7 +6,7 @@ import Browser
 import AssocList as Dict
 import List.Extra as List
 import Maybe.Extra as Maybe
-
+import Library exposing (..)
 main : Program () Model Msg
 main = 
   Browser.sandbox
