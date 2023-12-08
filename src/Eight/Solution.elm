@@ -37,8 +37,6 @@ init =
   }
   
 
--- TODO Refactor carrying the jackrule into model --
-
 view : Model -> Html Msg
 view model = 
   div [style "display" "flex", style "flex-direction" "column", style "align-items" "center", style "margin" "40px"]
@@ -77,13 +75,32 @@ update msg model =
       
 solve1 : String -> Int
 solve1 str = 
-  parse str |>
-  traverseNodes |>
-  List.length
+  let
+      endNode = 
+        Regex.fromString "ZZZ" |>
+        Maybe.withDefault Regex.never
+  in
+    parse str |>
+    traverseNodes "AAA" endNode |>
+    List.length
   
 
 solve2 : String -> Int
-solve2 str = 0
+solve2 str = 
+  let
+    startNode = (Regex.fromString "\\w+A" |>
+      Maybe.withDefault Regex.never)
+    endNode = (Regex.fromString "\\w+Z" |>
+      Maybe.withDefault Regex.never)
+    map = parse str
+  in
+  map.nodes |>
+  Dict.keys |>
+  List.filter 
+    ( Regex.contains
+      startNode
+    ) |>
+  traverseNodesSim endNode map
 
 type Direction = Left | Right
 
@@ -115,32 +132,73 @@ parse str =
       Dict.fromList
   }
 
-traverseNodes : Map -> List String
-traverseNodes map = 
-  let 
-    follow dir = if dir == Left then Tuple.first else Tuple.second
-    findNode dir = 
-      Maybe.andThen 
-        (\node -> 
-          Maybe.andThen 
-            (\found -> Just <| follow dir found)
-            (Dict.get node map.nodes))
-    collect traversalData =
+traverseNodes : String -> Regex.Regex -> Map -> List String
+traverseNodes entry dest map = 
+    Tuple.pair map.instructions [entry] |> 
+    whileJust 
+        (\traversalData ->
         let 
-          nextNode dir = findNode dir (List.head nodes) 
-          (ins, nodes) = traversalData
+            (ins, nodes) = traversalData
         in
-          
-          case ins of
+            case ins of
             dir::rem -> 
-              Maybe.andThen
+                Maybe.andThen
                 (\a ->
-                  case a of
-                    "ZZZ" -> Nothing
-                    _ -> Just (if rem /= [] then rem else map.instructions, a :: nodes)
-                ) <| (nextNode dir)
+                    if Regex.contains dest a
+                    then Debug.log ("End Node: " ++ a) Nothing
+                    else Just (if rem /= [] then rem else map.instructions, a :: nodes)
+                ) <| (nextNode map.nodes (List.head nodes) dir)
             _ -> Nothing
-    in 
-      Tuple.pair map.instructions ["AAA"] |> 
-      whileJust collect |>
-      Tuple.second
+            ) |>
+        Tuple.second
+
+follow dir = if dir == Left then Tuple.first else Tuple.second
+
+findNode nodes dir = 
+    Maybe.andThen 
+        (\node -> 
+        Maybe.andThen 
+            (\found -> Just <| follow dir found)
+            (Dict.get node nodes))
+
+nextNode mapNodes nodeIndex dir = findNode mapNodes dir nodeIndex 
+
+-- #TODO Look into LCM
+traverseNodesSim : Regex.Regex -> Map -> List String -> Int
+traverseNodesSim dest map entries = 
+    let 
+        (final_ins, endnodes, final_count) =
+            (map.instructions, List.map Just entries, 1) |> 
+            whileJust 
+                (\traversalData ->
+                let 
+                    (ins, lastNodes, count) = traversalData
+                in
+                    case ins of
+                    dir::rem ->
+                        let 
+                            nodes = 
+                                lastNodes |>
+                                List.map 
+                                    (\node ->
+                                    Maybe.andThen
+                                        (\valid_node ->
+                                            -- Debug.log "Next node"
+                                            ((nextNode map.nodes ( Just valid_node) dir) |> -- (Debug.log "This node" <| )
+                                            Maybe.andThen Just)
+                                        ) node)
+                            result = 
+                                nodes |> 
+                                Maybe.values |> 
+                                List.map (Regex.contains dest) |>
+                                List.all identity
+                        in
+                            -- Debug.log ("(" ++ Debug.toString (List.length rem) ++ ")" ++ " " ++ Debug.toString dir ++ "\n\n")
+                            -- (
+                            if
+                                result 
+                                    then Nothing
+                                    else Just (if rem /= [] then rem else map.instructions, nodes, count + 1)
+                            -- )
+                    _ -> Nothing) 
+    in final_count

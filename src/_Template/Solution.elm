@@ -32,9 +32,7 @@ init =
   , input = ""
   , part = One
   }
-  
 
--- TODO Refactor carrying the jackrule into model --
 
 view : Model -> Html Msg
 view model = 
